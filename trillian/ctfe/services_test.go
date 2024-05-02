@@ -36,7 +36,7 @@ func TestIssuanceChainServiceAddAndGet(t *testing.T) {
 	ctx := context.Background()
 	storage := &fakeIssuanceChainStorage{}
 	cache := &fakeIssuanceChainCache{}
-	issuanceChainService := newIssuanceChainService(storage, cache)
+	issuanceChainService := newIssuanceChainService(IssuanceChainStorageBackendTrillianGRPC, storage, cache)
 
 	for _, test := range tests {
 		hash, err := issuanceChainService.Add(ctx, test.chain)

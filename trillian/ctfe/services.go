@@ -17,24 +17,59 @@ package ctfe
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/asn1"
+	"fmt"
 
+	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/cache"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/storage"
+	"github.com/google/trillian"
 	"k8s.io/klog/v2"
+
+	ct "github.com/google/certificate-transparency-go"
+)
+
+// An optional list of storage backends for issuance chain in ExtraData. Log
+// operators may want to use both Trillian GRPC and CTFE as the storage
+// backends to ensure the data availability at the beginning. By default,
+// the storage backend is Trillian GRPC. To use CTFE as the storage backend,
+// the CTFE storage connection string needs to be specified.
+type IssuanceChainStorageBackend string
+
+const (
+	IssuanceChainStorageBackendTrillianGRPC = IssuanceChainStorageBackend("TrillianGRPC")
+	IssuanceChainStorageBackendCTFE         = IssuanceChainStorageBackend("CTFE")
 )
 
 type issuanceChainService struct {
-	storage storage.IssuanceChainStorage
-	cache   cache.IssuanceChainCache
+	storageBackend IssuanceChainStorageBackend
+	storage        storage.IssuanceChainStorage
+	cache          cache.IssuanceChainCache
 }
 
-func newIssuanceChainService(s storage.IssuanceChainStorage, c cache.IssuanceChainCache) *issuanceChainService {
+func newIssuanceChainService(storageBackend IssuanceChainStorageBackend, s storage.IssuanceChainStorage, c cache.IssuanceChainCache) *issuanceChainService {
 	service := &issuanceChainService{
-		storage: s,
-		cache:   c,
+		storageBackend: storageBackend,
+		storage:        s,
+		cache:          c,
 	}
 
 	return service
+}
+
+// StorageBackend returns the storage backend for issuance chain.
+// The default storage backend is Trillian gRPC if it is not defined in log
+// config.
+func (s *issuanceChainService) StorageBackend() IssuanceChainStorageBackend {
+	return s.storageBackend
+}
+
+func (s *issuanceChainService) IsTrillianGRPCStorageBackendEnabled() bool {
+	return s.storageBackend == IssuanceChainStorageBackendTrillianGRPC
+}
+
+func (s *issuanceChainService) IsCTFEStorageBackendEnabled() bool {
+	return s.storageBackend == IssuanceChainStorageBackendCTFE
 }
 
 // GetByHash returns the issuance chain with hash as the input.
@@ -86,4 +121,80 @@ func (s *issuanceChainService) Add(ctx context.Context, chain []byte) ([]byte, e
 func issuanceChainHash(chain []byte) []byte {
 	checksum := sha256.Sum256(chain)
 	return checksum[:]
+}
+
+func (s *issuanceChainService) FixLogLeaf(ctx context.Context, leaf *trillian.LogLeaf) error {
+	// Skip if CTFE storage backend is not enabled.
+	if !s.IsCTFEStorageBackendEnabled() {
+		return nil
+	}
+
+	var precertChainHash ct.PrecertChainEntryHash
+	if rest, err := tls.Unmarshal(leaf.ExtraData, &precertChainHash); err == nil && len(rest) == 0 {
+		var chain []ct.ASN1Cert
+		if len(precertChainHash.IssuanceChainHash) > 0 {
+			chainBytes, err := s.GetByHash(ctx, precertChainHash.IssuanceChainHash)
+			if err != nil {
+				return err
+			}
+
+			if rest, err := asn1.Unmarshal(chainBytes, &chain); err != nil {
+				return err
+			} else if len(rest) > 0 {
+				return fmt.Errorf("IssuanceChain: trailing data %d bytes", len(rest))
+			}
+		}
+
+		precertChain := ct.PrecertChainEntry{
+			PreCertificate:   precertChainHash.PreCertificate,
+			CertificateChain: chain,
+		}
+		extraData, err := tls.Marshal(precertChain)
+		if err != nil {
+			return err
+		}
+
+		leaf.ExtraData = extraData
+		return nil
+	}
+
+	var certChainHash ct.CertificateChainHash
+	if rest, err := tls.Unmarshal(leaf.ExtraData, &certChainHash); err == nil && len(rest) == 0 {
+		var entries []ct.ASN1Cert
+		if len(certChainHash.IssuanceChainHash) > 0 {
+			chainBytes, err := s.GetByHash(ctx, certChainHash.IssuanceChainHash)
+			if err != nil {
+				return err
+			}
+
+			if rest, err := asn1.Unmarshal(chainBytes, &entries); err != nil {
+				return err
+			} else if len(rest) > 0 {
+				return fmt.Errorf("IssuanceChain: trailing data %d bytes", len(rest))
+			}
+		}
+
+		certChain := ct.CertificateChain{
+			Entries: entries,
+		}
+		extraData, err := tls.Marshal(certChain)
+		if err != nil {
+			return err
+		}
+
+		leaf.ExtraData = extraData
+		return nil
+	}
+
+	// Skip if the types are ct.PrecertChainEntry or ct.CertificateChain as there is no hash.
+	var precertChain ct.PrecertChainEntry
+	if rest, err := tls.Unmarshal(leaf.ExtraData, &precertChain); err == nil && len(rest) == 0 {
+		return nil
+	}
+	var certChain ct.CertificateChain
+	if rest, err := tls.Unmarshal(leaf.ExtraData, &certChain); err == nil && len(rest) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("unknown extra data type in log leaf: %s", string(leaf.MerkleLeafHash))
 }
