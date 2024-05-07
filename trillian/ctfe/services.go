@@ -37,9 +37,8 @@ import (
 type IssuanceChainStorageBackend string
 
 type issuanceChainService struct {
-	storageBackend IssuanceChainStorageBackend
-	storage        storage.IssuanceChainStorage
-	cache          cache.IssuanceChainCache
+	storage storage.IssuanceChainStorage
+	cache   cache.IssuanceChainCache
 }
 
 func newIssuanceChainService(s storage.IssuanceChainStorage, c cache.IssuanceChainCache) *issuanceChainService {
