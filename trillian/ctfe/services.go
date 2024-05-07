@@ -29,13 +29,6 @@ import (
 	ct "github.com/google/certificate-transparency-go"
 )
 
-// An optional list of storage backends for issuance chain in ExtraData. Log
-// operators may want to use both Trillian GRPC and CTFE as the storage
-// backends to ensure the data availability at the beginning. By default,
-// the storage backend is Trillian GRPC. To use CTFE as the storage backend,
-// the CTFE storage connection string needs to be specified.
-type IssuanceChainStorageBackend string
-
 type issuanceChainService struct {
 	storage storage.IssuanceChainStorage
 	cache   cache.IssuanceChainCache
