@@ -957,13 +957,8 @@ func buildLogLeafForAddChain(li *logInfo,
 	raw := extractRawCerts(chain)
 	issuanceChain := raw[1:]
 
-	// Return error if both Trillian gRPC and CTFE storage backends are disabled.
-	if !li.IssuanceChainService.IsTrillianGRPCStorageBackendEnabled() && !li.IssuanceChainService.IsCTFEStorageBackendEnabled() {
-		return trillian.LogLeaf{}, errors.New("failed to buildLogLeafForAddChain: both Trillian gRPC and CTFE storage backends are disabled")
-	}
-
 	// Trillian gRPC storage backend is enabled and CTFE storage backend is disabled.
-	if li.IssuanceChainService.IsTrillianGRPCStorageBackendEnabled() && !li.IssuanceChainService.IsCTFEStorageBackendEnabled() {
+	if li.IssuanceChainService.storage == nil {
 		return util.BuildLogLeaf(li.LogPrefix, merkleLeaf, 0, raw[0], issuanceChain, isPrecert)
 	}
 
@@ -976,7 +971,7 @@ func buildLogLeafForAddChain(li *logInfo,
 	hash := issuanceChainHash(chainBytes)
 
 	// Set issuance chain to nil if Trillian gRPC storage backend is not enabled.
-	if !li.IssuanceChainService.IsTrillianGRPCStorageBackendEnabled() {
+	if li.IssuanceChainService.storage != nil {
 		issuanceChain = nil
 	}
 

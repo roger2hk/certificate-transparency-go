@@ -30,6 +30,7 @@ import (
 	"github.com/google/certificate-transparency-go/asn1"
 	"github.com/google/certificate-transparency-go/schedule"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/cache"
+	"github.com/google/certificate-transparency-go/trillian/ctfe/configpb"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/storage"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/storage/mysql"
 	"github.com/google/certificate-transparency-go/trillian/util"
@@ -182,17 +183,16 @@ func setUpLogInfo(ctx context.Context, opts InstanceOptions) (*logInfo, error) {
 
 	// Initialise IssuanceChainService
 	var issuanceChainStorage storage.IssuanceChainStorage
-	if vCfg.ExtraDataIssuanceChainStorageBackend == IssuanceChainStorageBackendCTFE {
+	if vCfg.ExtraDataIssuanceChainStorageBackend == configpb.LogConfig_ISSUANCE_CHAIN_STORAGE_BACKEND_CTFE {
 		if strings.HasPrefix(vCfg.CTFEStorageConnectionString, "mysql") {
-			issuanceChainStorage = mysql.NewIssuanceChainStorage(vCfg.CTFEStorageConnectionString)
+			issuanceChainStorage = mysql.NewIssuanceChainStorage(ctx, vCfg.CTFEStorageConnectionString)
 		} else {
 			return nil, errors.New("failed to initialise IssuanceChainService due to unsupported driver in connection string")
 		}
 	}
 
 	var issuanceChainCache cache.IssuanceChainCache
-
-	issuanceChainService := newIssuanceChainService(vCfg.ExtraDataIssuanceChainStorageBackend, issuanceChainStorage, issuanceChainCache)
+	issuanceChainService := newIssuanceChainService(issuanceChainStorage, issuanceChainCache)
 
 	logInfo := newLogInfo(opts, validationOpts, signer, new(util.SystemTimeSource), issuanceChainService)
 	return logInfo, nil

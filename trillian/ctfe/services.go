@@ -47,11 +47,10 @@ type issuanceChainService struct {
 	cache          cache.IssuanceChainCache
 }
 
-func newIssuanceChainService(storageBackend IssuanceChainStorageBackend, s storage.IssuanceChainStorage, c cache.IssuanceChainCache) *issuanceChainService {
+func newIssuanceChainService(s storage.IssuanceChainStorage, c cache.IssuanceChainCache) *issuanceChainService {
 	service := &issuanceChainService{
-		storageBackend: storageBackend,
-		storage:        s,
-		cache:          c,
+		storage: s,
+		cache:   c,
 	}
 
 	return service
