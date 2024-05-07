@@ -466,7 +466,7 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 	timeMillis := uint64(li.TimeSource.Now().UnixNano() / millisPerNano)
 
 	// If CTFE storage is enabled for issuance chain, add the chain to storage and cache, get the chain hash for Trillian gRPC.
-	if li.IssuanceChainService.IsCTFEStorageBackendEnabled() {
+	if li.IssuanceChainService.storage != nil {
 		// TODO: Check how to convert []ct.ASN1Cert to []byte correctly.
 		issuanceChain, err := asn1.Marshal(extractRawCerts(chain)[1:])
 		if err != nil {

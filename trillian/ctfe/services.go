@@ -36,11 +36,6 @@ import (
 // the CTFE storage connection string needs to be specified.
 type IssuanceChainStorageBackend string
 
-const (
-	IssuanceChainStorageBackendTrillianGRPC = IssuanceChainStorageBackend("TrillianGRPC")
-	IssuanceChainStorageBackendCTFE         = IssuanceChainStorageBackend("CTFE")
-)
-
 type issuanceChainService struct {
 	storageBackend IssuanceChainStorageBackend
 	storage        storage.IssuanceChainStorage
@@ -54,21 +49,6 @@ func newIssuanceChainService(s storage.IssuanceChainStorage, c cache.IssuanceCha
 	}
 
 	return service
-}
-
-// StorageBackend returns the storage backend for issuance chain.
-// The default storage backend is Trillian gRPC if it is not defined in log
-// config.
-func (s *issuanceChainService) StorageBackend() IssuanceChainStorageBackend {
-	return s.storageBackend
-}
-
-func (s *issuanceChainService) IsTrillianGRPCStorageBackendEnabled() bool {
-	return s.storageBackend == IssuanceChainStorageBackendTrillianGRPC
-}
-
-func (s *issuanceChainService) IsCTFEStorageBackendEnabled() bool {
-	return s.storageBackend == IssuanceChainStorageBackendCTFE
 }
 
 // GetByHash returns the issuance chain with hash as the input.
@@ -124,7 +104,7 @@ func issuanceChainHash(chain []byte) []byte {
 
 func (s *issuanceChainService) FixLogLeaf(ctx context.Context, leaf *trillian.LogLeaf) error {
 	// Skip if CTFE storage backend is not enabled.
-	if !s.IsCTFEStorageBackendEnabled() {
+	if s.storage == nil {
 		return nil
 	}
 
